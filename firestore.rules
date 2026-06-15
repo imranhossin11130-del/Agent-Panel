@@ -1,0 +1,107 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Catch-all safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Hardened Entity Validation
+    function isValidAgent(data) {
+      return data.keys().hasAll(['uid', 'agentId', 'name', 'phone', 'walletBalance', 'commissionBalance', 'isVerified'])
+        && (data.keys().size() >= 7 && data.keys().size() <= 13)
+        && data.uid is string && data.uid.size() <= 128
+        && data.agentId is string && data.agentId.size() <= 32
+        && data.name is string && data.name.size() <= 128
+        && data.phone is string && data.phone.size() <= 32
+        && data.walletBalance is number && data.walletBalance >= 0
+        && data.commissionBalance is number && data.commissionBalance >= 0
+        && data.isVerified is bool
+        && (!data.keys().hasAny(['hasTakenSuperBalance']) || data.hasTakenSuperBalance is bool)
+        && (!data.keys().hasAny(['superBalanceTotal']) || data.superBalanceTotal is number);
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidDepositRequest(data) {
+      return data.keys().hasAll(['id', 'agentUid', 'agentName', 'agentPhone', 'type', 'senderPhone', 'amount', 'status', 'createdAt'])
+        && data.id is string && data.id.size() <= 128
+        && data.agentUid is string && data.agentUid.size() <= 128
+        && data.agentName is string && data.agentName.size() <= 128
+        && data.agentPhone is string && data.agentPhone.size() <= 32
+        && data.type is string && (data.type == 'own' || data.type == 'super')
+        && data.senderPhone is string && data.senderPhone.size() <= 32
+        && data.amount is number && data.amount > 0
+        && data.status is string && (data.status == 'pending' || data.status == 'success' || data.status == 'failed')
+        && data.createdAt is string;
+    }
+
+    // Match rules for agent profiles
+    match /agents/{uid} {
+      allow get: if isOwner(uid) || (isSignedIn() && request.auth.token.email == 'bdwalletagent@gmail.com');
+      allow list: if isOwner(uid) || (isSignedIn() && request.auth.token.email == 'bdwalletagent@gmail.com');
+      
+      // Require owner UID and schema validation on creation
+      allow create: if isOwner(uid) && isValidAgent(incoming()) && incoming().uid == request.auth.uid;
+      
+      // Segmented updates using affectedKeys check
+      allow update: if isOwner(uid) || (isSignedIn() && request.auth.token.email == 'bdwalletagent@gmail.com') || (
+        // Action 1: Profile metadata (Name/Avatar) update
+        (incoming().diff(existing()).affectedKeys().hasAny(['name', 'avatarUrl']) && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'avatarUrl', 'uid', 'agentId', 'phone', 'walletBalance', 'commissionBalance', 'isVerified']) &&
+         incoming().name is string && incoming().name.size() <= 128) ||
+         
+        // Action 2: Operational balance modifications (transacting/refilling)
+        (incoming().diff(existing()).affectedKeys().hasAny(['walletBalance', 'commissionBalance']) &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['walletBalance', 'commissionBalance', 'uid', 'agentId', 'name', 'phone', 'avatarUrl', 'isVerified']) &&
+         incoming().walletBalance is number && incoming().walletBalance >= 0 &&
+         incoming().commissionBalance is number && incoming().commissionBalance >= 0)
+      );
+
+      allow delete: if false;
+
+      // Rules for agent transaction history
+      match /transactions/{transactionId} {
+        allow read: if isOwner(uid) || (isSignedIn() && request.auth.token.email == 'bdwalletagent@gmail.com');
+        allow create, update: if isSignedIn() && (request.auth.token.email == 'bdwalletagent@gmail.com' || isOwner(uid));
+        allow delete: if false;
+      }
+    }
+
+    // Match rules for agent deposit requests
+    match /deposit_requests/{requestId} {
+      allow get: if isSignedIn() && isValidId(requestId) && (resource.data.agentUid == request.auth.uid || request.auth.token.email == 'bdwalletagent@gmail.com');
+      allow list: if isSignedIn() && (resource.data.agentUid == request.auth.uid || request.auth.token.email == 'bdwalletagent@gmail.com');
+      allow create: if isSignedIn() && isValidId(requestId) && isValidDepositRequest(incoming()) && incoming().agentUid == request.auth.uid;
+      allow update: if isSignedIn() && (
+        request.auth.token.email == 'bdwalletagent@gmail.com' ||
+        (resource.data.agentUid == request.auth.uid && 
+         resource.data.type == 'super' && 
+         incoming().status == 'success' && 
+         existing().status == 'pending' &&
+         isValidDepositRequest(incoming()))
+      );
+      allow delete: if false;
+    }
+  }
+}

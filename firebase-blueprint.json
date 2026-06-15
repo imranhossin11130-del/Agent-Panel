@@ -1,0 +1,52 @@
+{
+  "entities": {
+    "Agent": {
+      "title": "Agent",
+      "description": "Registered agent profile information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The firebase auth user ID" },
+        "agentId": { "type": "string", "description": "Unique assigned agent number" },
+        "name": { "type": "string", "description": "Full name of the agent" },
+        "phone": { "type": "string", "description": "Agent phone number" },
+        "walletBalance": { "type": "number", "description": "Agent wallet funds" },
+        "commissionBalance": { "type": "number", "description": "Commission earned" },
+        "avatarUrl": { "type": "string", "description": "Profile picture URL" },
+        "isVerified": { "type": "boolean", "description": "Verification tag" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["uid", "agentId", "name", "phone", "walletBalance", "commissionBalance", "isVerified"]
+    },
+    "DepositRequest": {
+      "title": "DepositRequest",
+      "description": "Requests made by agents for wallet balance refilling.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique ID of the request" },
+        "agentUid": { "type": "string", "description": "The requesting agent's auth UID" },
+        "agentName": { "type": "string", "description": "Name of requesting agent" },
+        "agentPhone": { "type": "string", "description": "Phone number of requesting agent" },
+        "type": { "type": "string", "enum": ["own", "super"], "description": "Type of requested deposit" },
+        "paymentMethod": { "type": "string", "description": "bKash or Nagad" },
+        "senderPhone": { "type": "string", "description": "Phone number that sent/requested balance" },
+        "amount": { "type": "number", "description": "Amount in BDT" },
+        "trxId": { "type": "string", "description": "Transaction ID for verification" },
+        "screenshotUrl": { "type": "string", "description": "Simulated base64 or uploaded placeholder image URL" },
+        "status": { "type": "string", "enum": ["pending", "success", "failed"], "description": "Status of the request" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last updated timestamp" }
+      },
+      "required": ["id", "agentUid", "agentName", "agentPhone", "type", "senderPhone", "amount", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "agents/{uid}": {
+      "schema": "Agent",
+      "description": "Documents storing each registered agent's details mapped by auth UID."
+    },
+    "deposit_requests/{requestId}": {
+      "schema": "DepositRequest",
+      "description": "Documents representing own and super-agent deposit request details for approval."
+    }
+  }
+}

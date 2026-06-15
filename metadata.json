@@ -1,0 +1,6 @@
+{
+  "name": "MFS Agent Dashboard",
+  "description": "A highly polished, interactive mobile financial services (MFS) agent app in Bengali and English, featuring wallet/commission balances with tap-to-reveal animations, cash in/out, mobile recharge, live bills, and transaction history.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
