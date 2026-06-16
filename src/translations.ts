@@ -6,7 +6,7 @@ export const translations = {
     commissionBalance: "COMMISSION BALANCE",
     tapToViewBalance: "ট্যাপ করে ব্যালেন্স দেখুন",
     tapToViewCommission: "ট্যাপ করে কমিশন দেখুন",
-    cashInNote: "ক্যাশ ইন লেনদেনে ব্যবহৃত হবে",
+    cashInNote: "খেলোয়াড়দের জমার অনুরোধ অনুমোদন করতে ব্যবহৃত হবে",
     withdrawCommissionBtn: "উত্তোলন করুন (Cash Out)",
     
     // Stats Cards
@@ -20,8 +20,8 @@ export const translations = {
     quickActionsTitle: "এজেন্ট কুইক মেনু (QUICK ACTIONS)",
     servicePanelLabel: "সার্ভিস প্যানেল",
     
-    actionCashIn: "ক্যাশ ইন",
-    actionCashOut: "ক্যাশ আউট",
+    actionCashIn: "ডিপোজিট এপ্রুভ করুন",
+    actionCashOut: "উইথড্র এপ্রুভ করুন",
     actionMobileRecharge: "মোবাইল রিচার্জ",
     actionBillLive: "বিল লাইভ",
     actionAgentCash: "এজেন্ট ক্যাশ",
@@ -73,8 +73,8 @@ export const translations = {
     service: "সার্ভিস",
     rate: "কমিশন হার",
     limits: "লেনদেন সীমা",
-    rule1: "প্রতিটি ক্যাশ-ইন লেনদেনে মূল টাকার ০.৩০% কমিশন যুক্ত হয়।",
-    rule2: "প্রতিটি ক্যাশ-আউট লেনদেন সম্পন্ন করলে ০.২৫% কমিশন ওয়ালেটে যুক্ত হবে।",
+    rule1: "প্রতিটি ক্যাশ-ইন লেনদেনে মূল টাকার ৫.০০% কমিশন যুক্ত হয়।",
+    rule2: "প্রতিটি ক্যাশ-আউট লেনদেন সম্পন্ন করলে ৩.০০% কমিশন ওয়ালেটে যুক্ত হবে।",
     rule3: "মোবাইল রিচার্জের জন্য প্রতিটি রিচার্জে ২.৮৫% আকর্ষণীয় কমিশন পাবেন।",
     rule4: "যেকোনো বিদ্যুৎ, পানি অথবা গ্যাস বিল পেইমেন্টে ফ্ল্যাট ৳১৫ কমিশন প্রদান করা হয়।",
     
@@ -133,7 +133,7 @@ export const translations = {
     commissionBalance: "COMMISSION BALANCE",
     tapToViewBalance: "Tap to view balance",
     tapToViewCommission: "Tap to view commission",
-    cashInNote: "Will be used for Cash In transactions",
+    cashInNote: "Used to approve player deposit requests",
     withdrawCommissionBtn: "Withdraw (Cash Out)",
     
     // Stats Cards
@@ -147,8 +147,8 @@ export const translations = {
     quickActionsTitle: "Quick Actions Menu",
     servicePanelLabel: "Service Panel",
     
-    actionCashIn: "Cash In",
-    actionCashOut: "Cash Out",
+    actionCashIn: "Approve Deposit",
+    actionCashOut: "Withdraw Approve",
     actionMobileRecharge: "Mobile Rec.",
     actionBillLive: "Bill Live",
     actionAgentCash: "Agent Cash",
@@ -200,8 +200,8 @@ export const translations = {
     service: "Service",
     rate: "Commission Rate",
     limits: "Transaction Limits",
-    rule1: "Earn 0.30% commission on the transaction amount for every Cash-In.",
-    rule2: "Earn 0.25% commission on the cash out amount for every Cash-Out.",
+    rule1: "Earn 5.00% commission on the transaction amount for every Cash-In.",
+    rule2: "Earn 3.00% commission on the cash out amount for every Cash-Out.",
     rule3: "Get an attractive flat 2.85% commission on every Mobile Recharge.",
     rule4: "Get a flat ৳15.00 cash commission on paying any Utility Bills.",
     

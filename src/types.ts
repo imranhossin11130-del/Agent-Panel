@@ -20,6 +20,12 @@ export interface AgentProfile {
   walletBalance: number;
   commissionBalance: number;
   avatarUrl?: string;
+  referBalance?: number;
+  referredBy?: string | null;
+  referStatus?: 'idle' | 'waiting' | 'approved' | 'rejected';
+  referWaitingUntil?: number | null;
+  referApprovalLink?: string | null;
+  referCount?: number;
 }
 
 export interface DailyStats {

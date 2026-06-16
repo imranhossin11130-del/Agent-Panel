@@ -8,14 +8,15 @@ import {
   Coins, 
   HelpCircle, 
   Send,
-  History 
+  History,
+  Gift
 } from 'lucide-react';
 import { TransactionType, Language } from '../types';
 import { translations } from '../translations';
 
 interface QuickActionsProps {
   language: Language;
-  onActionClick: (action: TransactionType | 'guidelines' | 'support' | 'history_log') => void;
+  onActionClick: (action: any) => void;
 }
 
 export const QuickActions: React.FC<QuickActionsProps> = ({
@@ -23,6 +24,7 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
   onActionClick,
 }) => {
   const t = translations[language];
+  const isBn = language === 'bn';
 
   const menuItems = [
     {
@@ -87,6 +89,13 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
       icon: History,
       color: 'bg-purple-500/20 text-purple-300 border-purple-500/25',
       actionKey: 'history_log' as const,
+    },
+    {
+      id: 'refer',
+      label: isBn ? 'রেফার' : 'Refer',
+      icon: Gift,
+      color: 'bg-orange-500/20 text-orange-300 border-orange-500/25',
+      actionKey: 'refer' as const,
     },
   ];
 

@@ -15,13 +15,13 @@ import { ActionSheets } from './components/ActionSheets';
 import { HistoryTab } from './components/HistoryTab';
 import { RefillTab } from './components/RefillTab';
 import { ProfileTab } from './components/ProfileTab';
-import { Wifi, Battery, Signal, Bell, CheckCircle2, ShieldCheck, LogOut } from 'lucide-react';
+import { Bell, CheckCircle2, ShieldCheck, LogOut, Trophy, Coins, AlertTriangle, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Firebase integrations
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { AuthScreen } from './components/AuthScreen';
 import { SuperAdminPortal } from './components/SuperAdminPortal';
 
@@ -35,9 +35,9 @@ export default function App() {
   const [language, setLanguage] = useState<Language>('bn');
   const [activeAction, setActiveAction] = useState<TransactionType | 'guidelines' | 'support' | null>(null);
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
+  const [activeCommissionWithdrawId, setActiveCommissionWithdrawId] = useState<string | null>(null);
   
-  // Simulated clock for mock smartphone status bar
-  const [currentTime, setCurrentTime] = useState('');
+
   
   // Toast notifications for background simulated approvals
   const [toastNotification, setToastNotification] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
@@ -48,6 +48,11 @@ export default function App() {
   const [newPinValue, setNewPinValue] = useState('');
   const [newPinError, setNewPinError] = useState('');
 
+  // Referral URL state controls
+  const [activeReferApprovalId, setActiveReferApprovalId] = useState<string | null>(null);
+  const [pendingReferralReq, setPendingReferralReq] = useState<any | null>(null);
+  const [loadingApprovalDetails, setLoadingApprovalDetails] = useState(false);
+
   // URL search parameter listener
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -55,7 +60,44 @@ export default function App() {
     if (reqId) {
       setActiveRequestId(reqId);
     }
+    const commId = params.get('commissionWithdrawId');
+    if (commId) {
+      setActiveCommissionWithdrawId(commId);
+    }
+    const rId = params.get('referApprovalId');
+    if (rId) {
+      setActiveReferApprovalId(rId);
+    }
   }, []);
+
+  // Effect to pull from Firestore on refer approval link click
+  useEffect(() => {
+    const loadReferRequest = async () => {
+      if (!activeReferApprovalId) {
+        setPendingReferralReq(null);
+        return;
+      }
+      setLoadingApprovalDetails(true);
+      try {
+        const q = query(
+          collection(db, 'referral_requests'),
+          where('agentId', '==', activeReferApprovalId),
+          where('status', '==', 'pending')
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          setPendingReferralReq({ id: snap.docs[0].id, ...snap.docs[0].data() });
+        } else {
+          setPendingReferralReq(null);
+        }
+      } catch (err) {
+        console.error("Referral fetch failure:", err);
+      } finally {
+        setLoadingApprovalDetails(false);
+      }
+    };
+    loadReferRequest();
+  }, [activeReferApprovalId]);
 
   // Auth synchronization listener
   useEffect(() => {
@@ -80,7 +122,13 @@ export default function App() {
               walletBalance: 0.00, // Starts at 0.00 as per instructions
               commissionBalance: 0.00,
               isVerified: true,
-              avatarUrl: ''
+              avatarUrl: '',
+              referBalance: 0.00,
+              referredBy: null,
+              referStatus: 'idle',
+              referWaitingUntil: null,
+              referApprovalLink: null,
+              referCount: 0,
             };
             await setDoc(docRef, {
               uid: user.uid,
@@ -91,6 +139,12 @@ export default function App() {
               commissionBalance: freshProfile.commissionBalance,
               isVerified: freshProfile.isVerified,
               avatarUrl: freshProfile.avatarUrl,
+              referBalance: freshProfile.referBalance,
+              referredBy: freshProfile.referredBy,
+              referStatus: freshProfile.referStatus,
+              referWaitingUntil: freshProfile.referWaitingUntil,
+              referApprovalLink: freshProfile.referApprovalLink,
+              referCount: freshProfile.referCount,
               createdAt: new Date().toISOString()
             });
             setProfile(freshProfile);
@@ -143,16 +197,7 @@ export default function App() {
     };
   }, []);
 
-  // Update live clock
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      setCurrentTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }));
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, []);
+
 
   // Save changes to localStorage
   useEffect(() => {
@@ -181,11 +226,108 @@ export default function App() {
           walletBalance: newProfile.walletBalance,
           commissionBalance: newProfile.commissionBalance,
           isVerified: newProfile.isVerified,
-          avatarUrl: newProfile.avatarUrl || ''
+          avatarUrl: newProfile.avatarUrl || '',
+          referBalance: newProfile.referBalance !== undefined ? newProfile.referBalance : 0.00,
+          referredBy: newProfile.referredBy !== undefined ? newProfile.referredBy : null,
+          referStatus: newProfile.referStatus !== undefined ? newProfile.referStatus : 'idle',
+          referWaitingUntil: newProfile.referWaitingUntil !== undefined ? newProfile.referWaitingUntil : null,
+          referApprovalLink: newProfile.referApprovalLink !== undefined ? newProfile.referApprovalLink : null,
+          referCount: newProfile.referCount !== undefined ? newProfile.referCount : 0,
         }, { merge: true });
       } catch (err) {
         console.error("Firestore balance sync failed:", err);
       }
+    }
+  };
+
+  const handleApproveReferralRequest = async (req: any) => {
+    try {
+      // 1. Update the referral request status to success
+      const reqRef = doc(db, 'referral_requests', req.id);
+      await updateDoc(reqRef, {
+        status: 'success',
+        updatedAt: new Date().toISOString()
+      });
+
+      // 2. Query sponsor's agent details using their code (referCode is the sponsor code)
+      const sponsorQuery = query(collection(db, 'agents'), where('agentId', '==', req.referCode));
+      const sponsorSnap = await getDocs(sponsorQuery);
+      if (!sponsorSnap.empty) {
+        const sponsorDoc = sponsorSnap.docs[0];
+        const currentReferBalance = Number(sponsorDoc.data().referBalance || 0);
+        const currentReferCount = Number(sponsorDoc.data().referCount || 0);
+        
+        // Add 500 BDT flat reward and increment referCount count
+        await updateDoc(doc(db, 'agents', sponsorDoc.id), {
+          referBalance: currentReferBalance + 500,
+          referCount: currentReferCount + 1
+        });
+      }
+
+      // 3. Update the applicant profile's status to 'approved'
+      const applicantRef = doc(db, 'agents', req.agentUid);
+      await updateDoc(applicantRef, {
+        referStatus: 'approved',
+        referredBy: req.referCode
+      });
+
+      // If active user is the applicant, update current profile state!
+      if (auth.currentUser && auth.currentUser.uid === req.agentUid) {
+        setProfile((prev) => prev ? { ...prev, referStatus: 'approved', referredBy: req.referCode } : null);
+      }
+
+      triggerToast(
+        language === 'bn' 
+          ? 'রেফারেল আবেদনটি সফলভাবে অনুমোদন করা হয়েছে এবং আমন্ত্রণকারী ৫০০ টাকা ব্যালেন্স পেয়েছেন!' 
+          : 'Referral request approved successfully! sponsor gets 500 BDT.',
+        'success'
+      );
+      setActiveReferApprovalId(null);
+      setPendingReferralReq(null);
+    } catch (err) {
+      console.error(err);
+      triggerToast(
+        language === 'bn' ? 'অনুমোদন সম্পন্ন করতে ব্যর্থ হয়েছে।' : 'Approval processing failed.',
+        'info'
+      );
+    }
+  };
+
+  const handleRejectReferralRequest = async (req: any) => {
+    try {
+      // 1. Update the referral request status to failed
+      const reqRef = doc(db, 'referral_requests', req.id);
+      await updateDoc(reqRef, {
+        status: 'failed',
+        updatedAt: new Date().toISOString()
+      });
+
+      // 2. Set applicant's referStatus to 'rejected' so they can submit again
+      const applicantRef = doc(db, 'agents', req.agentUid);
+      await updateDoc(applicantRef, {
+        referStatus: 'rejected',
+        referredBy: null
+      });
+
+      // If active user is the applicant, update current profile state
+      if (auth.currentUser && auth.currentUser.uid === req.agentUid) {
+        setProfile((prev) => prev ? { ...prev, referStatus: 'rejected', referredBy: null } : null);
+      }
+
+      triggerToast(
+        language === 'bn' 
+          ? 'আবেদনটি সফলভাবে প্রত্যাখ্যান করা হয়েছে!' 
+          : 'Referral request rejected successfully!',
+        'success'
+      );
+      setActiveReferApprovalId(null);
+      setPendingReferralReq(null);
+    } catch (err) {
+      console.error(err);
+      triggerToast(
+        language === 'bn' ? 'বাতিল প্রক্রিয়া সম্পন্ন করতে ব্যর্থ হয়েছে।' : 'Rejection processing failed.',
+        'info'
+      );
     }
   };
 
@@ -199,9 +341,9 @@ export default function App() {
     // 1. Calculate commissions
     let commission = 0;
     if (type === 'cash_in') {
-      commission = amount * 0.003; // 0.3% commission for Cash In
+      commission = amount * 0.05; // 5% commission for Player Deposit Approval
     } else if (type === 'cash_out') {
-      commission = amount * 0.0025; // 0.25% commission for Cash Out
+      commission = amount * 0.03; // 3% commission for Cash Out
     } else if (type === 'recharge') {
       commission = amount * 0.0285; // 2.85% commission for Mobile Recharge
     } else if (type === 'bill_pay') {
@@ -213,7 +355,10 @@ export default function App() {
       let nextWallet = currentProfile.walletBalance;
       let nextCommission = currentProfile.commissionBalance;
 
-      if (type === 'cash_in' || type === 'recharge' || type === 'bill_pay') {
+      if (type === 'recharge' || type === 'bill_pay') {
+        nextCommission -= amount;
+        nextCommission += commission; // commission instantly added
+      } else if (type === 'cash_in') {
         nextWallet -= amount;
         nextCommission += commission; // commission instantly added
       } else if (type === 'cash_out') {
@@ -395,33 +540,9 @@ export default function App() {
           overflow-hidden flex flex-col relative
         "
       >
-        {/* Mock Notch / Top Speaker Island for Premium Aesthetic */}
-        <div className="absolute top-0 inset-x-0 h-7 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-between px-6 shrink-0 select-none text-white">
-          {/* Back Camera & Speaker Pillar Pill */}
-          <div className="absolute left-1/2 -translate-x-1/2 top-1 h-4 w-28 bg-slate-950 rounded-full flex items-center justify-center">
-            <span className="w-1.5 h-1.5 bg-rose-500/40 border border-slate-900 rounded-full absolute right-3"></span>
-          </div>
-          
-          {/* Status Bar Clock */}
-          <span className="text-[11px] font-black text-white/80 tracking-wide font-mono">
-            {currentTime}
-          </span>
-
-          {/* Status Signals & Network indices */}
-          <div className="flex items-center space-x-1.5 text-white/60">
-            <span className="text-[9px] font-black tracking-widest font-mono">Robi 4G</span>
-            <Signal size={12} className="stroke-[2.5px] fill-current" />
-            <Wifi size={12} className="stroke-[2.5px]" />
-            <div className="flex items-center space-x-0.5">
-              <span className="text-[8px] font-black font-mono">92%</span>
-              <Battery size={13} className="shrink-0 stroke-[2px]" />
-            </div>
-          </div>
-        </div>
-
-        {/* Dynamic header - Offset by 7px for notch clearance */}
+        {/* Dynamic header */}
         {currentUser && currentUser.email !== 'bdwalletagent@gmail.com' && (
-          <div className="mt-6 shrink-0">
+          <div className="mt-3 shrink-0">
             <Header 
               profile={profile} 
               language={language} 
@@ -504,6 +625,12 @@ export default function App() {
                 window.history.replaceState({}, document.title, newUrl);
                 setActiveRequestId(null);
               }}
+              activeCommissionWithdrawId={activeCommissionWithdrawId}
+              onClearCommissionWithdrawId={() => {
+                const newUrl = window.location.origin + window.location.pathname;
+                window.history.replaceState({}, document.title, newUrl);
+                setActiveCommissionWithdrawId(null);
+              }}
               onShowToast={triggerToast}
             />
           </div>
@@ -537,6 +664,8 @@ export default function App() {
                     onActionClick={(action) => {
                       if (action === 'history_log') {
                         setActiveTab('history');
+                      } else if (action === 'refer') {
+                        setActiveTab('profile');
                       } else {
                         setActiveAction(action);
                       }
@@ -610,6 +739,10 @@ export default function App() {
                           : 'Profile updated successfully!',
                         'success'
                       );
+                    }}
+                    onUpdateProfileData={(data) => {
+                      const updatedProf = { ...profile, ...data };
+                      updateProfileAndFirestore(updatedProf);
                     }}
                   />
                 </motion.div>
@@ -767,6 +900,107 @@ export default function App() {
                     {language === 'bn' ? 'নিশ্চিত করুন' : 'Confirm'}
                   </button>
                 </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Super Agent Referral Verification Link Overlay Modal */}
+        <AnimatePresence>
+          {activeReferApprovalId && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/85 backdrop-blur-md z-[100] flex items-center justify-center p-4 select-none"
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 15 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 15 }}
+                className="w-full max-w-sm bg-slate-900 border border-orange-500/30 rounded-3xl p-6 shadow-2xl flex flex-col space-y-4 relative overflow-hidden"
+              >
+                <div className="absolute right-[-20px] top-[-20px] w-20 h-20 bg-orange-500/5 rounded-full blur-xl"></div>
+                
+                <div className="flex items-center space-x-3">
+                  <div className="p-3 bg-orange-500/10 border border-orange-500/20 text-orange-350 rounded-2xl">
+                    <Trophy size={22} className="stroke-[2.5px] text-orange-400" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-white uppercase tracking-wider">
+                      {language === 'bn' ? 'সুপার এজেন্ট রেফারেল অনুমোদন' : 'Referral Gateway Verification'}
+                    </h4>
+                    <span className="text-[10px] text-orange-450 font-bold block mt-0.5 uppercase tracking-wider">
+                      {language === 'bn' ? 'নিবন্ধক সুপার পার্টনার উইন্ডো' : 'Super Agent Approval Panel'}
+                    </span>
+                  </div>
+                </div>
+
+                {loadingApprovalDetails ? (
+                  <div className="flex flex-col items-center justify-center py-6 space-y-2">
+                    <div className="w-8 h-8 rounded-full border-2 border-orange-500/10 border-t-orange-500 animate-spin"></div>
+                    <span className="text-[10px] uppercase font-black tracking-wider text-white/40">{language === 'bn' ? 'ডাটা লোড হচ্ছে...' : 'Loading Details...'}</span>
+                  </div>
+                ) : !pendingReferralReq ? (
+                  <div className="text-center py-6 space-y-2">
+                    <AlertTriangle size={24} className="text-red-400 mx-auto animate-pulse" />
+                    <h5 className="text-xs font-black text-white uppercase tracking-wider">{language === 'bn' ? 'কোন পেন্ডিং আবেদন পাওয়া যায়নি!' : 'No Active Request Found'}</h5>
+                    <p className="text-[10px] text-white/40 leading-relaxed max-w-[200px] mx-auto">
+                      {language === 'bn' 
+                        ? 'এই রেফারেল আবেদনটি ইতিমধ্যে অনুমোদিত বা বাতিল হয়ে গেছে।' 
+                        : 'This referral application code might be already approved, rejected or expired.'}
+                    </p>
+                    <button
+                      onClick={() => setActiveReferApprovalId(null)}
+                      className="mt-2 py-1.5 px-4 bg-white/5 border border-white/10 text-white rounded-xl text-[10px] font-black uppercase cursor-pointer transition-all active:scale-95"
+                    >
+                      {language === 'bn' ? 'বন্ধ করুন' : 'Dismiss'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="p-3 bg-white/5 border border-white/5 rounded-2xl text-[11px] leading-relaxed space-y-2.5">
+                      <div className="flex justify-between">
+                        <span className="text-white/40">{language === 'bn' ? 'আবেদনকারী এজেন্ট' : 'Applicant Agent'}</span>
+                        <strong className="text-white font-extrabold">{pendingReferralReq.agentName}</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-white/40">{language === 'bn' ? 'আবেদনকারীর মোবাইল' : 'Applicant Phone'}</span>
+                        <strong className="text-white font-mono">{pendingReferralReq.agentPhone}</strong>
+                      </div>
+                      <div className="flex justify-between border-t border-white/5 pt-2">
+                        <span className="text-white/40">{language === 'bn' ? 'সামনে স্পন্সর কোড' : 'Inviter Sponsor Code'}</span>
+                        <strong className="text-orange-350 font-mono select-all bg-orange-500/10 px-2 py-0.5 rounded border border-orange-500/15">{pendingReferralReq.referCode}</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-white/40">{language === 'bn' ? 'আমন্ত্রণকারীর নাম' : 'Sponsor Agent Name'}</span>
+                        <strong className="text-white">{pendingReferralReq.sponsorName}</strong>
+                      </div>
+                    </div>
+
+                    <p className="text-[10px] text-white/50 leading-relaxed font-semibold">
+                      {language === 'bn' 
+                        ? 'অনুগ্রহ করে উপরের বিবরণ যাচাই করুন। অনুমোদন নিশ্চিত করলে আমন্ত্রক স্পন্সর এককালীন ৫০০ টাকা বোনাস পাবেন এবং আবেদনকারী এজেন্টের কোড স্থায়ীভাবে নিবন্ধিত হবে।' 
+                        : 'Verifying this will instantly credit 500 BDT to the sponsor agent wallet and register the linked profile.'}
+                    </p>
+
+                    <div className="flex gap-3 pt-1 select-none">
+                      <button
+                        onClick={() => handleRejectReferralRequest(pendingReferralReq)}
+                        className="flex-1 py-3 bg-red-500/15 border border-red-500/20 text-rose-300 rounded-2xl font-black text-xs uppercase cursor-pointer transition-all hover:bg-red-500/25 active:scale-95"
+                      >
+                        {language === 'bn' ? 'বাতিল করুন' : 'Reject'}
+                      </button>
+                      <button
+                        onClick={() => handleApproveReferralRequest(pendingReferralReq)}
+                        className="flex-[1.5] py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-slate-950 rounded-2xl font-black text-xs uppercase cursor-pointer transition-all hover:opacity-90 active:scale-95 flex items-center justify-center gap-1 shadow-lg shadow-orange-500/15"
+                      >
+                        <Check size={14} className="stroke-[3px]" />
+                        <span>{language === 'bn' ? 'অনুমোদন দিন' : 'Approve'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </motion.div>
             </motion.div>
           )}

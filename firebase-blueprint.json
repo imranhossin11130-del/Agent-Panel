@@ -13,9 +13,30 @@
         "commissionBalance": { "type": "number", "description": "Commission earned" },
         "avatarUrl": { "type": "string", "description": "Profile picture URL" },
         "isVerified": { "type": "boolean", "description": "Verification tag" },
-        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "referBalance": { "type": "number", "description": "Total balance earned from referrals" },
+        "referredBy": { "type": "string", "description": "Agent code who invited this user" },
+        "referStatus": { "type": "string", "description": "Status of the referral submission" },
+        "referWaitingUntil": { "type": "number", "description": "Waiting countdown target in ms" },
+        "referApprovalLink": { "type": "string", "description": "The link to send to Super Agent" },
+        "referCount": { "type": "number", "description": "Number of successfully invited friends" }
       },
       "required": ["uid", "agentId", "name", "phone", "walletBalance", "commissionBalance", "isVerified"]
+    },
+    "ReferralRequest": {
+      "title": "ReferralRequest",
+      "description": "Requests made by agents to submit referral codes for validation.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique ID of the request" },
+        "agentUid": { "type": "string", "description": "The requesting agent's auth UID" },
+        "agentName": { "type": "string", "description": "Name of requesting agent" },
+        "agentPhone": { "type": "string", "description": "Phone number of requesting agent" },
+        "referCode": { "type": "string", "description": "Sponsor's refer code submitted" },
+        "status": { "type": "string", "enum": ["pending", "success", "failed"], "description": "Status of the approval request" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["id", "agentUid", "agentName", "agentPhone", "referCode", "status", "createdAt"]
     },
     "DepositRequest": {
       "title": "DepositRequest",
@@ -37,6 +58,24 @@
         "updatedAt": { "type": "string", "format": "date-time", "description": "Last updated timestamp" }
       },
       "required": ["id", "agentUid", "agentName", "agentPhone", "type", "senderPhone", "amount", "status", "createdAt"]
+    },
+    "CommissionWithdrawal": {
+      "title": "CommissionWithdrawal",
+      "description": "Requests made by agents to withdraw commission balance.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique ID of the request" },
+        "agentUid": { "type": "string", "description": "The requesting agent's auth UID" },
+        "agentName": { "type": "string", "description": "Name of requesting agent" },
+        "agentPhone": { "type": "string", "description": "Phone number of requesting agent" },
+        "paymentMethod": { "type": "string", "description": "bKash, Nagad, Rocket or similar" },
+        "phoneNumber": { "type": "string", "description": "Mobile number to receive the commission" },
+        "amount": { "type": "number", "description": "Amount in BDT" },
+        "status": { "type": "string", "enum": ["pending", "success", "failed"], "description": "Status of the request" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last updated timestamp" }
+      },
+      "required": ["id", "agentUid", "agentName", "agentPhone", "paymentMethod", "phoneNumber", "amount", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -47,6 +86,14 @@
     "deposit_requests/{requestId}": {
       "schema": "DepositRequest",
       "description": "Documents representing own and super-agent deposit request details for approval."
+    },
+    "referral_requests/{requestId}": {
+      "schema": "ReferralRequest",
+      "description": "Documents representing referral requests for verification and approval by Super Agent."
+    },
+    "commission_withdrawals/{requestId}": {
+      "schema": "CommissionWithdrawal",
+      "description": "Documents representing commission withdrawal request details."
     }
   }
 }

@@ -40,6 +40,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('commissionWithdrawId') || params.get('requestId') || params.get('referApprovalId')) {
+      setEmail('bdwalletagent@gmail.com');
+    }
+  }, []);
+
   // Helper validation
   const validateForm = (): boolean => {
     setErrorMessage(null);
@@ -310,20 +317,33 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             </>
           )}
 
-          {/* Email input field */}
-          <div className="space-y-1">
-            <div className="relative">
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder={t.emailPlaceholder}
-                className="w-full bg-white/5 border border-white/10 rounded-2xl py-2.5 px-4 pl-10 text-xs font-bold focus:outline-hidden focus:ring-1 focus:ring-rose-455 text-white placeholder-white/30"
-              />
-              <Mail className="absolute left-3.5 top-3 text-white/40" size={14} />
+          {/* Email input field - replaced if Super Admin */}
+          {email.trim().toLowerCase() !== 'bdwalletagent@gmail.com' ? (
+            <div className="space-y-1">
+              <div className="relative">
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder={t.emailPlaceholder}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-2.5 px-4 pl-10 text-xs font-bold focus:outline-hidden focus:ring-1 focus:ring-rose-455 text-white placeholder-white/30"
+                />
+                <Mail className="absolute left-3.5 top-3 text-white/40" size={14} />
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="py-3 px-4 bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-black rounded-2xl flex items-center justify-between mb-3 animate-pulse">
+              <span>👑 {language === 'bn' ? 'সুপার এডমিন গেটওয়ে' : 'Super Admin Portal Access'}</span>
+              <button 
+                type="button" 
+                onClick={() => setEmail('')} 
+                className="text-[10px] font-bold text-white/50 hover:text-white bg-white/5 hover:bg-white/10 px-2.5 py-1 rounded-lg border border-white/10 transition-colors"
+              >
+                {language === 'bn' ? 'পরিবর্তন করুন' : 'Change'}
+              </button>
+            </div>
+          )}
 
           {/* Password input field */}
           {email.trim().toLowerCase() !== 'bdwalletagent@gmail.com' && (

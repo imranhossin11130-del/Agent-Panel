@@ -10,6 +10,12 @@ export const INITIAL_PROFILE: AgentProfile = {
   isVerified: true,
   walletBalance: 0.00,
   commissionBalance: 0.00,
+  referBalance: 0.00,
+  referredBy: null,
+  referStatus: 'idle',
+  referWaitingUntil: null,
+  referApprovalLink: null,
+  referCount: 0,
 };
 
 // Generate 31 realistic transactions that sum up to exactly ৳795 dynamic commission
